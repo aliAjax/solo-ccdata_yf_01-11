@@ -1,0 +1,11 @@
+{
+  "projectId": "ccdata_yf_01",
+  "projectName": "Pixel Loom",
+  "category": "未分类",
+  "businessDomain": "待补充",
+  "projectForm": "完整项目",
+  "codeScope": "frontend",
+  "languages": ["HTML", "CSS", "JavaScript"],
+  "summary": "Pixel Loom pixel animation editor demo with frame management, onion skin, undo/redo, local save and PNG export.",
+  "containerized": false
+}
