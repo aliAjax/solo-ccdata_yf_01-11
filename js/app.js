@@ -484,8 +484,10 @@
       });
       renderCanvas();
     } else if (moveDrag) {
-      moveDrag.dx = cell.x - moveStart.x;
-      moveDrag.dy = cell.y - moveStart.y;
+      // 钳制在画布内：拖动不裁剪、不丢弃像素，与步骤执行规则一致
+      const r = moveDrag.region;
+      moveDrag.dx = Math.max(-r.x, Math.min(W - r.x - r.w, cell.x - moveStart.x));
+      moveDrag.dy = Math.max(-r.y, Math.min(H - r.y - r.h, cell.y - moveStart.y));
       renderCanvas();
     }
   });

@@ -131,6 +131,17 @@
           throw new StepError(`移动步骤越界：区域 (${r.x}, ${r.y}, ${r.w}×${r.h}) 超出 ${W}×${H} 画布`);
         }
         if (!Number.isInteger(step.dx) || !Number.isInteger(step.dy)) throw new StepError('移动步骤位移无效：dx/dy 需为整数');
+        // 落点越界同样阻止：不裁剪、不丢弃任何像素，并指出越界坐标
+        const tx = r.x + step.dx, ty = r.y + step.dy;
+        if (tx < 0 || ty < 0 || tx + r.w > W || ty + r.h > H) {
+          const oob = [];
+          for (let y = 0; y < r.h; y++) for (let x = 0; x < r.w; x++) {
+            const nx = tx + x, ny = ty + y;
+            if (nx < 0 || ny < 0 || nx >= W || ny >= H) oob.push(`(${nx}, ${ny})`);
+          }
+          const detail = oob.length <= 3 ? oob.join('、') : `${oob.slice(0, 3).join('、')} 等 ${oob.length} 个像素`;
+          throw new StepError(`移动步骤越界：落点 ${detail} 超出 ${W}×${H} 画布`);
+        }
         moveRegion(pix, W, H, r, step.dx, step.dy);
         return;
       }

@@ -39,6 +39,14 @@ async function setRange(page, start, end) {
   await page.locator('#rangeEnd').fill(String(end));
   await page.locator('#rangeEnd').press('Tab');
 }
+async function setMove(page, stepIndex, fields) {
+  const row = page.locator('.step').nth(stepIndex);
+  for (const [k, v] of Object.entries(fields)) {
+    const input = row.locator(`input[data-field="${k}"]`);
+    await input.fill(String(v));
+    await input.press('Tab');
+  }
+}
 
 test.beforeEach(async ({ page }) => {
   await page.goto('/');
@@ -258,4 +266,87 @@ test('录制：填充与选区移动被记为带参数的步骤', async ({ page 
   expect(steps).toHaveLength(2);
   expect(steps[0]).toMatchObject({ type: 'fill', color: '#ff7aa8', x: 0, y: 0 });
   expect(steps[1]).toMatchObject({ type: 'move', region: { x: 0, y: 0, w: 3, h: 3 }, dx: 3, dy: 3 });
+});
+
+/* ---------- 13. 移动落点越界：向右 ---------- */
+test('移动越界（向右）：预览与应用均失败并回滚，修正位移后通过', async ({ page }) => {
+  await page.evaluate(() => window.__app.setPixel(0, 12, 0, '#ff7aa8'));
+  await addStep(page, 'move');
+  await setMove(page, 0, { rx: 12, ry: 0, rw: 2, rh: 2, dx: 4, dy: 0 }); // 落点 x=16 越界
+  await page.locator('#previewBtn').click();
+  await expect(page.locator('#status')).toContainText('越界');
+  await expect(page.locator('#status')).toContainText('(16, 0)'); // 错误指出越界坐标
+  await page.locator('#applyBtn').click();
+  await expect(page.locator('#status')).toContainText('越界');
+  await expect(page.locator('#status')).toContainText('回滚');
+  expect(await px(page, 0, 12, 0)).toBe('#ff7aa8'); // 不裁剪、不丢弃
+  expect(await undoDepth(page)).toBe(0);
+  await setMove(page, 0, { dx: 2 }); // 修正为合法位移
+  await page.locator('#applyBtn').click();
+  await expect(page.locator('#status')).toContainText('已应用');
+  expect(await px(page, 0, 14, 0)).toBe('#ff7aa8');
+  expect(await px(page, 0, 12, 0)).toBe('');
+  expect(await undoDepth(page)).toBe(1);
+});
+
+/* ---------- 14. 移动落点越界：向下 ---------- */
+test('移动越界（向下）：失败回滚后修正可通过', async ({ page }) => {
+  await page.evaluate(() => window.__app.setPixel(0, 0, 12, '#77e1ba'));
+  await addStep(page, 'move');
+  await setMove(page, 0, { rx: 0, ry: 12, rw: 2, rh: 2, dx: 0, dy: 4 }); // 落点 y=16 越界
+  await page.locator('#applyBtn').click();
+  await expect(page.locator('#status')).toContainText('越界');
+  await expect(page.locator('#status')).toContainText('(0, 16)');
+  expect(await px(page, 0, 0, 12)).toBe('#77e1ba');
+  expect(await undoDepth(page)).toBe(0);
+  await setMove(page, 0, { dy: 2 });
+  await page.locator('#applyBtn').click();
+  await expect(page.locator('#status')).toContainText('已应用');
+  expect(await px(page, 0, 0, 14)).toBe('#77e1ba');
+  expect(await px(page, 0, 0, 12)).toBe('');
+  expect(await undoDepth(page)).toBe(1);
+});
+
+/* ---------- 15. 移动落点越界：负方向 ---------- */
+test('移动越界（负方向）：失败回滚后修正可通过', async ({ page }) => {
+  await page.evaluate(() => window.__app.setPixel(0, 1, 1, '#ffd166'));
+  await addStep(page, 'move');
+  await setMove(page, 0, { rx: 1, ry: 1, rw: 2, rh: 2, dx: -2, dy: 0 }); // 落点 x=-1 越界
+  await page.locator('#applyBtn').click();
+  await expect(page.locator('#status')).toContainText('越界');
+  await expect(page.locator('#status')).toContainText('(-1, 1)');
+  expect(await px(page, 0, 1, 1)).toBe('#ffd166');
+  expect(await undoDepth(page)).toBe(0);
+  await setMove(page, 0, { dx: -1 });
+  await page.locator('#applyBtn').click();
+  await expect(page.locator('#status')).toContainText('已应用');
+  expect(await px(page, 0, 0, 1)).toBe('#ffd166');
+  expect(await px(page, 0, 1, 1)).toBe('');
+  expect(await undoDepth(page)).toBe(1);
+});
+
+/* ---------- 16. 移动落点越界：嵌套调用 ---------- */
+test('移动越界（嵌套调用）：子脚本越界使父脚本预览与应用均失败，修复后通过', async ({ page }) => {
+  await page.evaluate(() => window.__app.setPixel(0, 12, 0, '#b18cff'));
+  await page.locator('#scriptNew').click(); // 脚本 B
+  await addStep(page, 'move');
+  await setMove(page, 0, { rx: 12, ry: 0, rw: 2, rh: 2, dx: 4, dy: 0 });
+  const [idA, idB] = await page.evaluate(() => window.__app.state.scripts.map(s => s.id));
+  await page.locator('#scriptSelect').selectOption(idA);
+  await addStep(page, 'script'); // A 嵌套 B
+  await page.locator('#previewBtn').click();
+  await expect(page.locator('#status')).toContainText('越界');
+  await expect(page.locator('#status')).toContainText('(16, 0)');
+  await page.locator('#applyBtn').click();
+  await expect(page.locator('#status')).toContainText('越界');
+  await expect(page.locator('#status')).toContainText('回滚');
+  expect(await px(page, 0, 12, 0)).toBe('#b18cff');
+  expect(await undoDepth(page)).toBe(0);
+  await page.locator('#scriptSelect').selectOption(idB);
+  await setMove(page, 0, { dx: 2 }); // 修复子脚本
+  await page.locator('#scriptSelect').selectOption(idA);
+  await page.locator('#applyBtn').click();
+  await expect(page.locator('#status')).toContainText('已应用');
+  expect(await px(page, 0, 14, 0)).toBe('#b18cff');
+  expect(await undoDepth(page)).toBe(1);
 });
