@@ -1,0 +1,14 @@
+{
+  "name": "pixel-loom-workbench",
+  "version": "1.0.0",
+  "description": "无需后端的像素动画脚本工作台：可录制的参数化步骤、帧范围绑定、正向/反向/镜像重放、逐帧预览、脚本嵌套、事务化批量应用。",
+  "scripts": {
+    "start": "python3 -m http.server 8123 --bind 127.0.0.1",
+    "test": "playwright test"
+  },
+  "keywords": ["pixel-art", "animation", "scripting", "no-backend"],
+  "license": "ISC",
+  "devDependencies": {
+    "@playwright/test": "^1.63.0"
+  }
+}
